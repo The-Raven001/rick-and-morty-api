@@ -8,7 +8,9 @@ from flask_swagger import swagger
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, User
+from models import db, Character, Gender, Specie
+
+
 #from models import Person
 
 app = Flask(__name__)
@@ -36,14 +38,52 @@ def handle_invalid_usage(error):
 def sitemap():
     return generate_sitemap(app)
 
-@app.route('/user', methods=['GET'])
-def handle_hello():
 
-    response_body = {
-        "msg": "Hello, this is your GET /user response "
-    }
+#CRUD
 
-    return jsonify(response_body), 200
+@app.route('/characters', methods=["GET"])
+def get_characters():
+    characters = Character.query.all()
+    serialized_characters = [character.serialize() for character in characters]
+    return jsonify({"characters": serialized_characters})
+
+@app.route("/character", methods=["POST"])
+def create_character():
+    body = request.json
+
+    name = body.get("name", None)
+    gender = body.get("gender", None)
+    specie = body.get("specie", None)
+    dimension = body.get("dimension", None)
+
+    if name is None or gender is None or specie is None or dimension is None:
+        return jsonify({"error": "missing fields"}), 400
+
+    character = Character(name=name, gender=Gender(gender), specie=Specie(specie), dimension=dimension)
+
+    try:
+        db.session.add(character)
+        db.session.commit()
+        db.session.refresh(character)
+
+        return jsonify({"message": f"Character created {character.name}!"}), 201
+
+    except Exception as error:
+        return jsonify({"error": f"{error}"}), 500
+
+
+@app.route("/character/<int:id>", methods=["GET"])
+def get_character_by_id(id):
+    try:
+        character = Character.query.get(id)
+        if character is None:
+            return jsonify({'error': "Character not found!"}), 404
+        return jsonify({"character": character.serialize()}), 200
+
+    except Exception as error:
+        return jsonify({"error": f"{error}"}), 500
+
+
 
 # this only runs if `$ python src/app.py` is executed
 if __name__ == '__main__':
