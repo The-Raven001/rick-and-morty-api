@@ -60,7 +60,7 @@ class Episode(db.Model):
             "name": self.name,
             "duration": self.duration,
             "number": self.number,
-            "release date": self.release_date,
+            "release_date": self.release_date,
             "characters": self.characters,
             "season": self.season_id,
             }
@@ -92,16 +92,16 @@ class Season(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     number = db.Column(db.Integer, unique=True, nullable=False)
     release_date = db.Column(db.DateTime, nullable=False)
-    end_date = db.Column(db.DateTime, nullable=False)
+    end_date = db.Column(db.DateTime, nullable=True)
     episode = db.relationship("Episode", backref="season", lazy=True)
 
     def serialize(self):
         return {
             "id": self.id,
             "number": self.number,
-            "release date": self.release_date,
-            "end date": self.end_date,
-            "episodes": self.episode
+            "release_date": self.release_date,
+            "end_date": self.end_date,
+            # "episodes": [episode.serialize() for episode in self.episode]
             }    
 
     def __repr__(self):
