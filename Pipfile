@@ -18,9 +18,10 @@ flask-cors = "*"
 gunicorn = "*"
 mysqlclient = "*"
 flask-admin = "*"
+flask-jwt-extended = "*"
 
 [requires]
-python_version = "3.11"
+python_version = "3.12"
 
 [scripts]
 start="flask run -p 3000 -h 0.0.0.0"
