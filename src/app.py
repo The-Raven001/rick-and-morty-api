@@ -8,8 +8,16 @@ from flask_swagger import swagger
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, Character, Gender, Specie, Season, Episode
+from models import db, Character, Gender, Specie, Season, Episode, User
+# Es de la compania que hizo flask
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+import re
+# generate_password_hash un string que nosostros creemos 
+# check_password_hash(abc1234, lakjsdfhasiudfbasdflkaj) -> True o False
+# Bcrypt
 
+PASSWORD_REGEX = r"^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}"
 
 #from models import Person
 
@@ -23,10 +31,15 @@ else:
     app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:////tmp/test.db"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# Una firma
+app.config['JWT_SECRET_KEY'] = os.environ.get("FLASK_APP_KEY")
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 3600 # 1 hora en segundos
+
 MIGRATE = Migrate(app, db)
 db.init_app(app)
 CORS(app)
 setup_admin(app)
+JWTManager(app)
 
 # Handle/serialize errors like a JSON object
 @app.errorhandler(APIException)
@@ -40,6 +53,71 @@ def sitemap():
 
 
 #CRUD
+# Vamos a crear un modelo usuario
+# Vamos a crear 2 endpoints para ese usuario
+#   1. Register/Signup
+#   2. Login/Signin
+# Prevenir que alguien sin una sesion creada
+# Pueda crear personajes/episodios/temporadas
+# Los usuarios sin sesion solo podran hacer metodos get
+
+
+# AUTH
+@app.route('/register', methods=["POST"])
+def user_register():
+    try:
+        body = request.json
+        email = body.get("email", None)
+        password = body.get("password", None)
+        if email is None or password is None:
+            return jsonify({"error": "Email and password required"}), 400
+        
+        email_is_taken = User.query.filter_by(email=email).first()
+        if email_is_taken:
+            return jsonify({"error": "Email already in use"}), 400
+        # if not re.search(PASSWORD_REGEX, password):
+        #     return jsonify({"error": "la contrasenia.........."}), 404
+        password_hash = generate_password_hash(password)
+        print(password_hash, len(password_hash))
+        # Debemos encriptar esa contrasenia
+        user = User(email=email, password=password_hash)
+        db.session.add(user)
+        db.session.commit()
+        return jsonify({"msg": "User created"}), 201
+
+
+    except Exception as error:
+        return jsonify({"error": f"{error}"}), 500
+
+@app.route("/login", methods=["POST"])
+def login():
+    try:
+        body = request.json
+        email = body.get("email", None)
+        password = body.get("password", None)
+        if email is None or password is None:
+            return jsonify({"error": "password and email required"}), 400
+        
+        user = User.query.filter_by(email=email).first()
+        if user is None:
+            return jsonify({"error": "Email or password wrong"}), 404
+        
+        if not check_password_hash(user.password, password):               
+            return jsonify({"error": "Email or password wrong"}), 400
+        
+        
+        auth_token = create_access_token({"id": user.id, "email": user.email})
+        return jsonify({"token": auth_token}), 200
+    except Exception as error:
+        return jsonify({"error": f"{error}"}), 500
+
+# la informacion que tenemos en el token
+@app.route("/me", methods=["GET"])
+@jwt_required()
+def get_user_data():
+    user_data = get_jwt_identity()
+    return jsonify(user_data), 200
+# RICK AND MORTY
 
 @app.route('/characters', methods=["GET"])
 def get_characters():
@@ -48,6 +126,7 @@ def get_characters():
     return jsonify({"characters": serialized_characters})
 
 @app.route("/character", methods=["POST"])
+@jwt_required() # Este endpoint necesita un token
 def create_character():
     body = request.json
 
@@ -84,6 +163,7 @@ def get_character_by_id(id):
         return jsonify({"error": f"{error}"}), 500
 
 @app.route("/character/<int:id>", methods=["DELETE"])
+@jwt_required()
 def character_delete(id):
     try:
         character = Character.query.get(id)
@@ -109,6 +189,7 @@ def get_all_seasons():
         return jsonify({"error":f"{error}"}),500    
     
 @app.route("/season", methods=["POST"])
+@jwt_required()
 def create_season():
 
     body = request.json

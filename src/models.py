@@ -21,6 +21,22 @@ class LocationType(PyEnum):
 
 #Tables
 
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(50), nullable=False, unique=True)
+    password = db.Column(db.String(180), nullable=False)
+    
+    def serialize(self):
+        return {
+            "id": self.id,
+            "email": self.email,
+            # Password no debe ser serializado
+        }
+    
+    def __repr__(self):
+        return f"<User: {self.email}>"
+
+
 # Relacion de muchos a muchos respecto a episodios y personajes
 class Character(db.Model):
     id = db.Column(db.Integer, primary_key=True)
